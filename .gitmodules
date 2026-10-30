@@ -1,0 +1,6 @@
+[submodule "src/llvm-compiler"]
+	path = src/llvm-compiler
+	url = https://github.com/Keller-Polk/llvm-compiler.git
+[submodule "src/apcsp-interperter"]
+	path = src/apcsp-interperter
+	url = https://github.com/Keller-Polk/apcsp-interperter.git
