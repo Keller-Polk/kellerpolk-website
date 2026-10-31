@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keller Polk — The APCSP interpreter</title>
+<meta name="description" content="A small BASIC-style language, interpreted in Rust. Edit a program, give it input, press run.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f7f5f0'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='20' text-anchor='middle' fill='%23191714'%3EK%3C/text%3E%3C/svg%3E">
+<script>
+(function () {
+  var t = null;
+  try { t = localStorage.getItem("kp-theme"); } catch (e) {}
+  if (t !== "light" && t !== "dark") {
+    t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  document.documentElement.setAttribute("data-theme", t);
+})();
+</script>
+<link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="wordmark" href="index.html"><span>Keller</span> Polk</a>
+    <nav class="site-nav">
+      <a href="llvm-compiler.html">LLVM compiler</a>
+      <a href="apcsp-interpreter.html">APCSP</a>
+      <a href="image-to-art.html">Image to art</a>
+      <button class="btn-tiny" type="button" data-theme-toggle></button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <p class="back"><a href="index.html">← All projects</a></p>
+
+  <section class="page-head">
+    <h1>The APCSP interpreter</h1>
+    <p class="lede">
+      A small BASIC-style language — procedures, input, random numbers, and loops —
+      interpreted in Rust. Programs start at <code>PROCEDURE start()</code>.
+    </p>
+  </section>
+
+  <section class="section section-tight">
+    <article class="playground" id="pg-apcsp" data-lang="apcsp">
+      <label class="field-label" for="apcsp-code">Source <span class="field-hint">(.ap)</span></label>
+      <textarea id="apcsp-code" class="editor editor-code" spellcheck="false"></textarea>
+      <label class="field-label" for="apcsp-stdin">Program input <span class="field-hint">(sent as stdin, one value per line)</span></label>
+      <textarea id="apcsp-stdin" class="editor editor-small editor-stdin" spellcheck="false" placeholder="e.g. 5"></textarea>
+      <div class="run-row">
+        <button class="btn btn-run" id="apcsp-run" type="button">Run</button>
+        <button class="btn btn-ghost btn-reset" id="apcsp-reset" type="button">Reset to sample</button>
+        <span class="status" id="apcsp-status" aria-live="polite"></span>
+      </div>
+      <div class="console" id="apcsp-console" aria-live="polite"><span class="console-empty">Output appears here.</span></div>
+      <p class="note">
+        The sample plays a guessing game — its secret number is <code>5</code>, so type <code>5</code>
+        in the input box to win (or type anything else to hear the other branch).
+      </p>
+    </article>
+  </section>
+
+  <section class="section section-tight">
+    <p class="section-label"><span>Source</span></p>
+    <p class="note">
+      <a href="https://github.com/Keller-Polk/apcsp-interperter" target="_blank" rel="noopener">Read the source ↗</a>
+      &nbsp;— the playground runs an unmodified build of the tool, pinned to the commit this site was built from.
+    </p>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>Built with Rust and LLVM. No frameworks — a few hundred lines of plain HTML, CSS, and JavaScript.</p>
+  </div>
+</footer>
+
+<script type="text/plain" id="sample-apcsp">
+PROCEDURE start()
+    secret <- 5
+    DISPLAY("Guess a number from 1 to 10")
+    guess <- INPUTI()
+    IF guess = secret THEN
+        DISPLAY("You got it")
+    ELSE
+        DISPLAY("No. It was 5")
+    END IF
+END PROCEDURE
+</script>
+
+<script src="js/site.js"></script>
+</body>
+</html>

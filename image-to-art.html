@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keller Polk — Image to art</title>
+<meta name="description" content="Upload a photo and get back a painting. A machine-learning prototype, hosted on Hugging Face and embedded live.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f7f5f0'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='20' text-anchor='middle' fill='%23191714'%3EK%3C/text%3E%3C/svg%3E">
+<script>
+(function () {
+  var t = null;
+  try { t = localStorage.getItem("kp-theme"); } catch (e) {}
+  if (t !== "light" && t !== "dark") {
+    t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  document.documentElement.setAttribute("data-theme", t);
+})();
+</script>
+<link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="wordmark" href="index.html"><span>Keller</span> Polk</a>
+    <nav class="site-nav">
+      <a href="llvm-compiler.html">LLVM compiler</a>
+      <a href="apcsp-interpreter.html">APCSP</a>
+      <a href="image-to-art.html">Image to art</a>
+      <button class="btn-tiny" type="button" data-theme-toggle></button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <p class="back"><a href="index.html">← All projects</a></p>
+
+  <section class="page-head">
+    <h1>Image to art</h1>
+    <p class="lede">
+      Upload a photo and it comes back as a painting. This one runs in the cloud —
+      a machine-learning prototype hosted as a Hugging Face Space and embedded below.
+    </p>
+  </section>
+
+  <section class="section section-tight">
+    <article class="playground" id="pg-art">
+      <div class="space-embed">
+        <iframe src="https://keller-polk-img-to-art.hf.space"
+                title="Image to art — Hugging Face Space"
+                loading="lazy"
+                style="width:100%;height:100%;min-height:560px;border:0;display:block"></iframe>
+      </div>
+      <p class="embed-note">
+        The Space runs in the cloud. The first load can take a little while —
+        it wakes from sleep when you arrive — and if the frame stays blank, refresh once.
+      </p>
+      <div class="run-row">
+        <a class="btn btn-ghost" href="https://huggingface.co/spaces/Keller-Polk/img-to-art" target="_blank" rel="noopener">Open the Space ↗</a>
+        <a class="btn btn-ghost" href="https://github.com/Keller-Polk/img-to-art" target="_blank" rel="noopener">Source ↗</a>
+      </div>
+    </article>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>Built with Rust and LLVM. No frameworks — a few hundred lines of plain HTML, CSS, and JavaScript.</p>
+  </div>
+</footer>
+
+<script src="js/site.js"></script>
+</body>
+</html>

@@ -27,6 +27,7 @@ import sys
 import tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Optional
 
 ROOT = Path(__file__).resolve().parent.parent.parent  # repo root
 BIN = Path(__file__).resolve().parent.parent / "bin"
@@ -39,6 +40,35 @@ MAX_STDIN = 10_000
 MAX_OUTPUT = 20_000
 
 
+def temp_base() -> Optional[Path]:
+    """Pick a directory that actually exists for per-run work dirs.
+
+    A long-lived process started inside a short-lived session may inherit a
+    TMPDIR that gets deleted out from under it (e.g. a per-run scratch dir).
+    Re-check on every call and fall back to stable locations.
+    """
+    cands: list[Path] = []
+    for var in ("TMPDIR", "TEMP", "TMP"):
+        v = os.environ.get(var)
+        if v:
+            cands.append(Path(v).expanduser())
+    cands.append(Path("/private/tmp"))
+    cands.append(Path(tempfile.gettempdir()))
+    cands.append(Path.home() / ".cache" / "kellerpolk-demo")
+    seen: set[Path] = set()
+    for c in cands:
+        if c in seen:
+            continue
+        seen.add(c)
+        try:
+            c.mkdir(parents=True, exist_ok=True)
+            if c.is_dir() and os.access(c, os.W_OK):
+                return c
+        except OSError:
+            continue
+    return None
+
+
 def truncate(text: str) -> str:
     if len(text) > MAX_OUTPUT:
         return text[:MAX_OUTPUT] + "\n… [output truncated]"
@@ -46,18 +76,26 @@ def truncate(text: str) -> str:
 
 
 def run_llvm(source: str, stdin: str) -> dict:
-    workdir = tempfile.mkdtemp(prefix="kellerpolk-llvm-")
+    base = temp_base()
+    if base is None:
+        return {"error": "no usable temp directory on the server"}
+    workdir = tempfile.mkdtemp(prefix="kellerpolk-llvm-", dir=base)
     try:
         src = Path(workdir) / "program.lang"
         src.write_text(source)
         compiler = BIN / "compiler"
-        proc = subprocess.run(
-            [str(compiler), str(src)],
-            cwd=workdir,
-            capture_output=True,
-            text=True,
-            timeout=BUILD_TIMEOUT,
-        )
+        try:
+            proc = subprocess.run(
+                [str(compiler), str(src)],
+                cwd=workdir,
+                capture_output=True,
+                text=True,
+                timeout=BUILD_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            return {"buildError": "compile timed out"}
+        except OSError as e:
+            return {"buildError": f"could not run the compiler: {e}"}
         if proc.returncode != 0:
             return {
                 "stdout": "",
@@ -66,14 +104,23 @@ def run_llvm(source: str, stdin: str) -> dict:
                 "buildError": truncate(proc.stderr or proc.stdout),
                 "ms": 0,
             }
-        out = subprocess.run(
-            [str(Path(workdir) / "program")],
-            cwd=workdir,
-            input=stdin,
-            capture_output=True,
-            text=True,
-            timeout=RUN_TIMEOUT,
-        )
+        try:
+            out = subprocess.run(
+                [str(Path(workdir) / "program")],
+                cwd=workdir,
+                input=stdin,
+                capture_output=True,
+                text=True,
+                timeout=RUN_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            return {"stdout": "", "stderr": "", "timedOut": True, "timeoutSecs": RUN_TIMEOUT}
+        except OSError as e:
+            return {
+                "stdout": "",
+                "stderr": "",
+                "error": f"could not run the compiled program: {e}",
+            }
         return {
             "stdout": truncate(out.stdout),
             "stderr": truncate(out.stderr),
@@ -87,18 +134,30 @@ def run_llvm(source: str, stdin: str) -> dict:
 
 
 def run_apcsp(source: str, stdin: str) -> dict:
-    workdir = tempfile.mkdtemp(prefix="kellerpolk-apcsp-")
+    base = temp_base()
+    if base is None:
+        return {"error": "no usable temp directory on the server"}
+    workdir = tempfile.mkdtemp(prefix="kellerpolk-apcsp-", dir=base)
     try:
         src = Path(workdir) / "program.ap"
         src.write_text(source)
-        out = subprocess.run(
-            [str(BIN / "apcsp2"), str(src)],
-            cwd=workdir,
-            input=stdin,
-            capture_output=True,
-            text=True,
-            timeout=APCSP_TIMEOUT,
-        )
+        try:
+            out = subprocess.run(
+                [str(BIN / "apcsp2"), str(src)],
+                cwd=workdir,
+                input=stdin,
+                capture_output=True,
+                text=True,
+                timeout=APCSP_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            return {"stdout": "", "stderr": "", "timedOut": True, "timeoutSecs": APCSP_TIMEOUT}
+        except OSError as e:
+            return {
+                "stdout": "",
+                "stderr": "",
+                "error": f"could not start the APCSP interpreter: {e}",
+            }
         return {
             "stdout": truncate(out.stdout),
             "stderr": truncate(out.stderr),
@@ -123,8 +182,18 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        # Lets the site work even if someone opens it from disk or another host.
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        if self.path.startswith("/api/"):
+            self._send_json({"ok": True})
+        else:
+            self._send_json({"error": "not found"}, 404)
 
     def do_GET(self):
         if self.path == "/api/ping":
@@ -151,9 +220,17 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if lang == "llvm":
-            self._send_json(run_llvm(source, stdin))
+            try:
+                self._send_json(run_llvm(source, stdin))
+            except Exception as e:
+                # Never drop the connection — a dead socket makes browsers
+                # show "Load failed" with no information.
+                self._send_json({"error": f"internal error: {type(e).__name__}: {e}"}, 500)
         elif lang == "apcsp":
-            self._send_json(run_apcsp(source, stdin))
+            try:
+                self._send_json(run_apcsp(source, stdin))
+            except Exception as e:
+                self._send_json({"error": f"internal error: {type(e).__name__}: {e}"}, 500)
         else:
             self._send_json({"error": f"unknown lang {lang!r}"}, 400)
 
@@ -161,6 +238,11 @@ class Handler(BaseHTTPRequestHandler):
         rel = self.path.split("?", 1)[0].split("#", 1)[0]
         if rel == "/" or rel == "":
             rel = "/index.html"
+        # Never serve dotfiles (e.g. .git config, which holds push credentials).
+        parts = [p for p in rel.split("/") if p not in ("", ".")]
+        if any(p.startswith(".") for p in parts):
+            self.send_error(403)
+            return
         # Resolve and make sure we stay inside ROOT.
         target = (ROOT / rel.lstrip("/")).resolve()
         if not str(target).startswith(str(ROOT.resolve())):
